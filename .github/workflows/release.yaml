@@ -10,7 +10,7 @@ on:
         required: false
         type: string
 
-# Needed to push the release tag and create the GitHub release.
+# Needed to push the release tag, create the GitHub release, and attach assets.
 permissions:
   contents: write
 
@@ -20,11 +20,38 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
+  # Build the static site once and share it with the release and deploy jobs.
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.23.2'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build static site
+        run: npm run build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-dist
+          path: dist
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0 # full history + existing tags are required to compute the next version
 
@@ -87,17 +114,21 @@ jobs:
           git tag -a "${VERSION}" -m "Release ${VERSION}"
           git push origin "refs/tags/${VERSION}"
 
-      # TODO(project): build and publish release artifacts for this version, e.g.:
-      #   - docker build -t <registry>/<image>:${VERSION} . && docker push <registry>/<image>:${VERSION}
-      #   - go build / goreleaser release
-      #   - npm publish / cargo publish
-      # Then attach files to the release with: gh release upload "${VERSION}" <files...>
-      #
-      # NOTE: pushes/creations made with the default GITHUB_TOKEN do NOT trigger
-      # other workflows (e.g. on: push of tags, on: release). If release events
-      # must fan out to further automation, use a PAT or a GitHub App token
-      # (see actions/create-github-app-token in the Renovate workflow).
+      - name: Download build artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: web-dist
 
+      - name: Package self-hostable bundle
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          tar -czf "json-view-${VERSION}.tar.gz" -C dist .
+          (cd dist && zip -r -q "../json-view-${VERSION}.zip" .)
+
+      # The archives above are the self-hostable release artifacts: extract and
+      # serve from any static file host (nginx, S3, Netlify, etc.).
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -105,4 +136,38 @@ jobs:
         run: |
           gh release create "${VERSION}" \
             --title "${VERSION}" \
-            --generate-notes
+            --generate-notes \
+            "json-view-${VERSION}.tar.gz" \
+            "json-view-${VERSION}.zip"
+
+  # Publish the same build to GitHub Pages after a successful release.
+  #
+  # One-time setup: enable GitHub Pages with source "GitHub Actions"
+  # (repo Settings → Pages → Build and deployment → Source).
+  deploy:
+    needs: release
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: web-dist
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

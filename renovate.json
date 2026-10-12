@@ -11,9 +11,8 @@
   "prHourlyLimit": 2,
   "enabledManagers": [
     "asdf",
-    "docker-compose",
     "github-actions",
-    "gomod"
+    "npm"
   ],
   "packageRules": [
     {
@@ -34,23 +33,6 @@
     },
     {
       "matchDatasources": [
-        "docker"
-      ],
-      "commitMessageTopic": "docker {{depName}}",
-      "matchUpdateTypes": [
-        "major",
-        "minor",
-        "patch"
-      ],
-      "semanticCommitType": "chore",
-      "semanticCommitScope": "docker",
-      "bumpVersion": "patch",
-      "addLabels": [
-        "docker"
-      ]
-    },
-    {
-      "matchDatasources": [
         "github-actions"
       ],
       "commitMessageTopic": "github action {{depName}}",
@@ -66,10 +48,10 @@
       ]
     },
     {
-      "matchDatasources": [
-        "gomod"
+      "matchManagers": [
+        "npm"
       ],
-      "commitMessageTopic": "go module {{depName}}",
+      "commitMessageTopic": "npm {{depName}}",
       "matchUpdateTypes": [
         "major",
         "minor",
@@ -78,7 +60,7 @@
       "semanticCommitType": "chore",
       "semanticCommitScope": "deps",
       "addLabels": [
-        "go"
+        "javascript"
       ]
     },
     {

@@ -1,61 +1,91 @@
-# template
+# JSON View
 
-Template repository for `ctrl-research` projects.
+A stateless, client-side JSON viewer and formatter. Paste JSON, format or minify it, and quickly search and explore an interactive tree — everything runs locally in your browser with no backend and no data leaving the page.
 
-## What's Included
+## Features
 
-- **Renovate** — automated dependency updates for Docker, Go modules, and GitHub Actions
-- **Releases** — automatic SemVer bumps on merge to `main` via PR labels (`major`/`minor`/`patch`, default `patch`), plus manual dispatch for explicit versions
-- **Branch protection** — `main` requires PRs and review
-- **CODEOWNERS** — `@ctrl-research/reviewers` auto-requested for review
-- **MIT License**
-- **.gitignore** — common exclusions for OS, IDE, build outputs, and secrets
-- **.tool-versions** — single source of truth for language/tool versions (asdf/mise compatible)
+- **Paste & auto-parse** — debounced, live validation with line/column error messages
+- **Format / Minify** — pretty-print (2-space indent) or collapse to a single line
+- **Interactive tree** — collapsible nodes, type-aware syntax coloring, expand/collapse all
+- **Search** — case-insensitive matching across keys *and* values with match highlighting, a live match counter, and ↑/↓ navigation that auto-expands to each hit
+- **JSONPath & filters** — query the document with JSONPath (member/index/wildcard/slice/union/recursive descent) and filter expressions (`[?(@.price > 20)]`); results are listed and highlighted in the tree
+- **Copy** — copy the formatted JSON to your clipboard
+- **Responsive** — side-by-side panes on wide screens, stacked on narrow ones; light and dark themes
 
-## Using This Template
+## Getting started
 
-1. Click **Use this template** to create a new repository
-2. Pin your project's language and tool versions in `.tool-versions`
-3. Update `renovate.json` to configure managers and schedules for your project
-4. Enable the new repo in the Renovate GitHub App if using hosted Renovate
-5. Fill in the artifact build/publish TODO stub in `.github/workflows/release.yaml`
+Requires the Node version pinned in [`.tool-versions`](.tool-versions) (install via `mise install` or `asdf install`).
 
-## Renovate
+```bash
+npm install
+npm run dev
+```
 
-Dependency updates are managed via Renovate. Configuration is in `renovate.json` and `.github/renovate-config.js`.
+Open the URL printed by Vite (default `http://localhost:5173`).
 
-Enabled managers:
-- `asdf` (keeps `.tool-versions` up to date)
-- `docker-compose`
-- `github-actions`
-- `gomod`
+## Scripts
 
-Add or remove managers as needed for your project.
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Start the dev server with HMR |
+| `npm run build` | Typecheck (`tsc -b`) and build the static site to `dist/` |
+| `npm run preview` | Serve the production build locally |
+| `npm run lint` | Run oxlint |
+| `npm run test` | Run Vitest unit tests |
 
-## Releases
+## Deployment
 
-Releases follow [SemVer](https://semver.org/) with bare `X.Y.Z` tags (no `v` prefix).
+`npm run build` emits a fully static site in `dist/`. Asset paths are relative (`base: './'`), so the build can be hosted from any path — GitHub Pages, S3, Netlify, or a plain file server — without additional configuration.
 
-- **Automatic**: merging a PR to `main` cuts a release based on its `major`, `minor`, or `patch` label; no label means a `patch` bump.
-- **Manual**: run the **Release** workflow with an explicit `X.Y.Z` version to cut a specific release.
+### Self-hosting
 
-Automation lives in `.github/workflows/release.yaml` (versioning, tag, GitHub release). Building and publishing artifacts (images, binaries) is project-specific — fill in the TODO stub in the workflow.
+Every GitHub release includes `json-view-<version>.tar.gz` and `json-view-<version>.zip`, each containing the built static site (unpacked contents of `dist/`). Download either archive, extract it, and serve the directory from any static file host — nginx, Apache, S3, Netlify, caddy, etc. No build step or runtime is required.
 
-## Files
+### GitHub Pages (automated)
+
+The [release workflow](.github/workflows/release.yaml) builds the site and publishes it to GitHub Pages after every successful release (i.e. every merge to `main`). To enable it, do this once:
+
+1. Repo **Settings → Pages → Build and deployment → Source**, select **GitHub Actions**.
+2. Merge to `main` (or run the workflow manually); the site appears at `https://<owner>.github.io/<repo>/`.
+
+## Querying
+
+Switch the toolbar to **JSONPath** to run structured queries. Supported syntax:
 
 ```
-.
-├── .github/
-│   ├── CODEOWNERS           # Auto-request review from @ctrl-research/reviewers
-│   ├── renovate-config.js   # Renovate platform config
-│   └── workflows/
-│       ├── release.yaml     # Label-driven SemVer release workflow
-│       └── renovate.yaml    # Renovate GitHub Action workflow
-├── .gitignore
-├── .tool-versions          # Pinned language/tool versions (asdf/mise)
-├── CONTRIBUTING.md
-├── LICENSE
-├── README.md
-├── renovate.json           # Renovate settings
-└── SECURITY.md
+$                      root
+$.a.b                  dot member access
+$['a']['b']            bracket member access
+$[0]  $[-1]            array index (negative counts from the end)
+$[*]  $.*              wildcard
+$[0,2,'name']          union of indices and names
+$[1:3]  $[::2]         array slices (Python-style, negatives supported)
+$..price               recursive descent (also bare `..` and `..*`)
+$[?(@.price > 20)]     filter selectors
 ```
+
+Filter expressions support `@` (current node) and `$` (root) paths, comparison
+(`== != < <= > >=`), regex `=~ /pattern/flags`, and boolean `&& || !` with
+parentheses. `==`/`!=` are strict deep-equality (no type coercion). A bare
+`@.prop` condition is truthy unless missing, `null`, or `false`. The engine is a
+dependency-free, no-`eval` implementation in
+[`src/lib/jsonpath.ts`](src/lib/jsonpath.ts).
+
+## How it works
+
+- **State** lives entirely in React component state; nothing is persisted.
+- **Parsing & search logic** is pure and lives in [`src/lib/json.ts`](src/lib/json.ts): the JSON value is walked once to produce a renderable tree plus an ordered list of search matches (keys and primitive values, never array indices).
+- **JSONPath** ([`src/lib/jsonpath.ts`](src/lib/jsonpath.ts)) is a hand-rolled parser + evaluator (tokenizer → AST → evaluation, no `eval`).
+- **Rendering** is a recursive component ([`src/components/JsonTreeNode.tsx`](src/components/JsonTreeNode.tsx)) that highlights matches and auto-expands ancestors when you navigate between hits.
+
+## Testing
+
+```bash
+npm run test
+```
+
+Unit tests cover parsing (including error location), formatting, the tree/search builder in [`src/lib/json.test.ts`](src/lib/json.test.ts), and the JSONPath engine in [`src/lib/jsonpath.test.ts`](src/lib/jsonpath.test.ts).
+
+## License
+
+[MIT](LICENSE)
