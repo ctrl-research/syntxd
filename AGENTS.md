@@ -4,7 +4,7 @@ Operational expectations for humans and AI agents working in this repository.
 
 ## Purpose
 
-**JSON View** is a stateless, client-side JSON viewer and formatter. Everything runs in the browser: paste JSON, format/minify it, and browse/search an interactive tree. No backend, no data leaves the page.
+**Syntxd** is a stateless, client-side viewer and formatter for structured data (JSON today; CSV/YAML/XML on the roadmap). Everything runs in the browser: paste JSON, format/minify it, and browse/search an interactive tree. No backend, no data leaves the page.
 
 ## Tech stack
 

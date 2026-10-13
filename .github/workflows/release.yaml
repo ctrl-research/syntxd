@@ -20,12 +20,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Build the static site once and share it with the release and deploy jobs.
-  build:
+  # Each job builds its own `dist/` rather than sharing an artifact between
+  # jobs, which avoids cross-job artifact path assumptions.
+  release:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history + existing tags are required to compute the next version
 
       - name: Set up Node
         uses: actions/setup-node@v7
@@ -36,24 +39,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Build before tagging so a broken build never produces a release.
       - name: Build static site
         run: npm run build
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: web-dist
-          path: dist
-          if-no-files-found: error
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # full history + existing tags are required to compute the next version
 
       - name: Compute next version
         id: version
@@ -85,8 +73,6 @@ jobs:
           LABELS="$(gh api --jq 'if length > 0 then [.[0].labels[].name] | join(",") else "" end' \
             "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" 2>/dev/null || true)"
 
-          # Exact label match within the comma-separated list (avoids false
-          # positives from labels like 'pre-major' or 'semver-minor').
           LEVEL="patch"
           if [[ ",${LABELS}," == *",major,"* ]]; then
             LEVEL="major"
@@ -114,21 +100,15 @@ jobs:
           git tag -a "${VERSION}" -m "Release ${VERSION}"
           git push origin "refs/tags/${VERSION}"
 
-      - name: Download build artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: web-dist
-
+      # Self-hostable release artifacts: extract and serve from any static host.
       - name: Package self-hostable bundle
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          tar -czf "json-view-${VERSION}.tar.gz" -C dist .
-          (cd dist && zip -r -q "../json-view-${VERSION}.zip" .)
+          tar -czf "syntxd-${VERSION}.tar.gz" -C dist .
+          (cd dist && zip -r -q "../syntxd-${VERSION}.zip" .)
 
-      # The archives above are the self-hostable release artifacts: extract and
-      # serve from any static file host (nginx, S3, Netlify, etc.).
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -137,10 +117,10 @@ jobs:
           gh release create "${VERSION}" \
             --title "${VERSION}" \
             --generate-notes \
-            "json-view-${VERSION}.tar.gz" \
-            "json-view-${VERSION}.zip"
+            "syntxd-${VERSION}.tar.gz" \
+            "syntxd-${VERSION}.zip"
 
-  # Publish the same build to GitHub Pages after a successful release.
+  # Publish the site to GitHub Pages after a successful release.
   #
   # One-time setup: enable GitHub Pages with source "GitHub Actions"
   # (repo Settings → Pages → Build and deployment → Source).
@@ -155,10 +135,20 @@ jobs:
       pages: write
       id-token: write
     steps:
-      - name: Download build artifact
-        uses: actions/download-artifact@v8
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
         with:
-          name: web-dist
+          node-version: '22.23.2'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build static site
+        run: npm run build
 
       - name: Configure Pages
         uses: actions/configure-pages@v6

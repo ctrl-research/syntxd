@@ -1,6 +1,6 @@
-# JSON View
+# Syntxd
 
-A stateless, client-side JSON viewer and formatter. Paste JSON, format or minify it, and quickly search and explore an interactive tree — everything runs locally in your browser with no backend and no data leaving the page.
+A stateless, client-side viewer and formatter for structured data — JSON today, CSV/YAML/XML on the roadmap. Paste JSON, format or minify it, and quickly search and explore an interactive tree — everything runs locally in your browser with no backend and no data leaving the page.
 
 ## Features
 
@@ -39,7 +39,7 @@ Open the URL printed by Vite (default `http://localhost:5173`).
 
 ### Self-hosting
 
-Every GitHub release includes `json-view-<version>.tar.gz` and `json-view-<version>.zip`, each containing the built static site (unpacked contents of `dist/`). Download either archive, extract it, and serve the directory from any static file host — nginx, Apache, S3, Netlify, caddy, etc. No build step or runtime is required.
+Every GitHub release includes `syntxd-<version>.tar.gz` and `syntxd-<version>.zip`, each containing the built static site (unpacked contents of `dist/`). Download either archive, extract it, and serve the directory from any static file host — nginx, Apache, S3, Netlify, caddy, etc. No build step or runtime is required.
 
 ### GitHub Pages (automated)
 

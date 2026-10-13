@@ -166,8 +166,8 @@ export default function App() {
     <div className="app">
       <header className="header">
         <div>
-          <h1>JSON View</h1>
-          <p className="tagline">Paste, format, search &amp; explore JSON — entirely in your browser.</p>
+          <h1>Syntxd</h1>
+          <p className="tagline">View, format &amp; explore structured data — entirely in your browser.</p>
         </div>
         <div className="actions">
           <button type="button" onClick={handleFormat} disabled={!raw.trim()}>Format</button>
